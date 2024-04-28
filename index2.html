@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Detection with Teachable Machine</title>
+</head>
+<body>
+    <!-- <video id="video" width="500" height="400" autoplay></video>
+    <canvas id="canvas" width="500" height="400" style="position: absolute; top: 0; left: 0;"></canvas> -->
+
+    <div id="webcam-container"></div>
+    <div id="label-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script>
+        // Teachable Machine Variables
+        let model, webcam, labelContainer, maxPredictions;
+        // Load the Teachable Machine model and setup the webcam
+        async function init() {
+            const URL = "https://teachablemachine.withgoogle.com/models/pOaORa87c/";
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // Convenience function to setup a webcam
+            const flip = true; // whether to flip the webcam
+            webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+            await webcam.setup(); // request access to the webcam
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            // append elements to the DOM
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) { // and class labels
+                labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        async function loop() {
+            webcam.update(); // update the webcam frame
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            const prediction = await model.predict(webcam.canvas);
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction =
+                    prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+            }
+        }
+        // Face Detection Variables
+        let video;
+        let canvas;
+        let ctx;
+
+        const accessCamera = () => {
+            navigator.mediaDevices
+                .getUserMedia({
+                    video: { width: 500, height: 400 },
+                    audio: false,
+                })
+                .then((stream) => {
+                    video = document.getElementById("video");
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        canvas = document.getElementById("canvas");
+                        ctx = canvas.getContext("2d");
+                        startFaceDetection();
+                    };
+                })
+                .catch((err) => {
+                    console.error("Error accessing camera:", err);
+                });
+        };
+
+        const startFaceDetection = async () => {
+            try {
+                model = await blazeface.load();
+                setInterval(detectFaces, 1000);
+            } catch (error) {
+                console.error("Error loading model:", error);
+            }
+        };
+
+        const detectFaces = async () => {
+            if (!model || !video || !canvas || !ctx) {
+                console.error("Model or video elements not initialized.");
+                return;
+            }
+
+            const prediction = await model.estimateFaces(video, false);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            prediction.forEach(async (predictions) => {
+                ctx.beginPath();
+                ctx.lineWidth = "4";
+                ctx.strokeStyle = "yellow";
+                ctx.rect(
+                    predictions.topLeft[0],
+                    predictions.topLeft[1],
+                    predictions.bottomRight[0] - predictions.topLeft[0],
+                    predictions.bottomRight[1] - predictions.topLeft[1]
+                );
+                ctx.stroke();
+
+                const faceWidth = predictions.bottomRight[0] - predictions.topLeft[0];
+                const faceHeight = predictions.bottomRight[1] - predictions.topLeft[1];
+                const faceCanvas = document.createElement('canvas');
+                const faceCtx = faceCanvas.getContext('2d');
+                faceCanvas.width = faceWidth;
+                faceCanvas.height = faceHeight;
+                faceCtx.drawImage(
+                    video,
+                    predictions.topLeft[0],
+                    predictions.topLeft[1],
+                    faceWidth,
+                    faceHeight,
+                    0,
+                    0,
+                    faceWidth,
+                    faceHeight
+                );
+                const imageDataUrl = faceCanvas.toDataURL('image/jpeg');
+                console.log("Captured face image:", imageDataUrl);
+
+                // Send captured face image to the Teachable Machine model
+                predictFromImage(imageDataUrl);
+            });
+        };
+
+        // Send captured face image to the Teachable Machine model
+        function predictFromImage(imageDataUrl) {
+            // Use the provided imageDataUrl for prediction using the Teachable Machine model
+            // Your code for prediction goes here
+            // For demonstration, let's just log the image URL
+            processImage(imageDataUrl);
+        }
+
+        // Define the processImage function to receive the image URL and perform prediction
+        function processImage(imageUrl) {
+            // Use the provided imageUrl for prediction using the Teachable Machine model
+            // Your code for prediction goes here
+            // You can use AJAX to send the image URL to your server for processing with the Teachable Machine model
+            // For simplicity, let's assume you have a function called predictFromUrl in your server-side code
+            // You would call it like this:
+            // predictFromUrl(imageUrl);
+
+            // For demonstration, let's just log the image URL
+            console.log("Received image URL:", imageUrl);
+        }
+
+        // Start accessing camera and face detection
+        accessCamera();
+        // Start Teachable Machine model
+        init();
+    </script>
+</body>
+</html>
